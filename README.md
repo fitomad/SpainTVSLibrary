@@ -24,5 +24,5 @@ NSString *enlace = @"http://www.mitele.es/viajes/callejeros-viajeros/temporada-3
 ```
 
 # Estado #
-Versión 0.4 - Obtenemos la información asociada a un vídeo y recuperamos si imagen.
-Versión 0.1 - Yo no la usuario en producción forastero...
+* Versión 0.4 - Obtenemos la información asociada a un vídeo y recuperamos su imagen.
+* Versión 0.1 - Yo no la usuario en producción forastero...
