@@ -9,6 +9,7 @@
 #import <XCTest/XCTest.h>
 
 #import "DSSpainTVSClient.h"
+#import "DSSpainTVSVideoInfo.h"
 
 @interface DSSpainTVSTests : XCTestCase
 //
@@ -29,13 +30,7 @@
 
 - (void)tearDown
 {
-    // Put teardown code here. This method is called after the invocation of each test method in the class.
     [super tearDown];
-}
-
-- (void)testExample
-{
-    XCTFail(@"No implementation for \"%s\"", __PRETTY_FUNCTION__);
 }
 
 //
@@ -43,11 +38,21 @@
 //
 - (void) testRecuperarInformacionEnlace
 {
-	[[DSSpainTVSClient sharedClient]  recoverVideoInfo:self.enlaceExistente completationHandler:^(NSArray *videos, NSError *error)
-	{
-		XCTAssertNotNil(videos, @"Debe haber información relacionado con el vídeo");
+    [[DSSpainTVSClient sharedClient] recoverVideoInfo:self.enlaceExistente completionHandler:^(NSArray *info, NSError *error)
+    {
+        XCTAssertNotNil(info, @"Debe haber informacion relacionado con el video");
 		XCTAssertNil(error, @"Si el objecto error no es nulo es que algo ha pasado.");
-	}];
+        
+        for(DSSpainTVSVideoInfo *video in info)
+        {
+            NSLog(@"%@", [video debugDescription]);
+            [[DSSpainTVSClient sharedClient] recoverVideoImage:video.imagen completionHandler:^(UIImage *imagen, NSError *error) {
+                NSLog(@"TamaÃ±o de la imagen: %@", [imagen description]);
+            }];
+        }
+    }];
+    
+    [NSThread sleepForTimeInterval:15];
 }
 
 //
@@ -55,7 +60,7 @@
 //
 - (void) testRecuperarInformacionEnlaceFalso
 {
-	[[DSSpainTVSClient sharedClient]  recoverVideoInfo:self.enlaceFalso completationHandler:^(NSArray *videos, NSError *error)
+	[[DSSpainTVSClient sharedClient]  recoverVideoInfo:self.enlaceFalso completionHandler:^(NSArray *videos, NSError *error)
 	{
 		XCTAssertNotNil(videos, @"Debe recuperarse un NSArray sin elementos");
 		XCTAssertNil(error, @"Si el objecto error no es nulo es que algo ha pasado.");
