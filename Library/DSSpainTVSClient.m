@@ -2,18 +2,37 @@
 #import "DSSpainTVSVideoInfo.h"
 
 @interface DSSpainTVSClient ()
-/*!  */
+/*! Path comun a todas peticiones del API */
 @property (nonatomic) NSString *baseURL;
 
 /*!
-	
+	Crea una URL v·lida del API con la que obtener los datos
+	de un video
+
+	@param videoURL
+		La URL del website de la cadena de television que contiene el video
+	@return 
+		La URL para su uso con el API
 */
-- (NSURL *) formatURLWithString:(NSString *) string;
+- (NSURL *) formatURLWithString:(NSString *) videoURL;
+
+/*!
+	Crea un nuevo nombre de archivo para el caso en que se 
+	pause la descarga de alg˙n archivo y se quiera reintentar m·s
+	adelante.
+
+	Todos los archivo con los datos de descarga se almacenar·n en 
+	el directorio Caches contenido en la carpeta Library de la App
+
+	@return
+		La URL con la localizacion del nuevo archivo.
+*/
+- (NSURL *) createCacheFile;
 @end
 
 @implementation DSSpainTVSClient
 //
-// 
+// Singleton
 //
 + (instancetype) sharedClient
 {
@@ -29,7 +48,7 @@
 }
 
 //
-//
+// Inicializador
 //
 - (id) init
 {
@@ -37,14 +56,14 @@
 
 	if(self)
 	{
-		self.baseURL = @"http://www.pydowntv.com/api/";
+		self.baseURL = @"http://www.pydowntv.com/api";
 	}
 
 	return self;
 }
 
 //
-//
+// Recuperamos la informacion de un video
 //
 - (void) recoverVideoInfo:(NSString *) url completionHandler:(void (^)(NSArray *info, NSError *error)) completionHandler
 {
@@ -92,18 +111,17 @@
 }
 
 //
+// Recuperamos la imagen asociada al video
 //
-//
-- (void) recoverVideoImage:(NSString *) imageURL completionHandler:(void (^)(UIImage *imagen, NSError *error)) completionHandler
+- (void) recoverVideoImage:(NSURL *) imageURL completionHandler:(void (^)(UIImage *imagen, NSError *error)) completionHandler
 {
-	NSURL *url = [NSURL URLWithString:imageURL];
 	NSURLSession *httpImageSession = [NSURLSession sharedSession];
 
-	NSURLSessionDataTask *dataTask = [httpImageSession dataTaskWithURL:url completionHandler:^(NSData *data, NSURLResponse *response, NSError *httpError)
+	NSURLSessionDataTask *dataTask = [httpImageSession dataTaskWithURL:imageURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *httpError)
 	{
-		if(errorHttp)
+		if(httpError)
 		{
-			completionHandler(nil, errorHttp);
+			completionHandler(nil, httpError);
 		}
 
 		UIImage *imagenVideo = [UIImage imageWithData:data];
@@ -115,38 +133,83 @@
 }
 
 //
+// Descarga un video
 //
-//
-- (void) downloadFromURL:(NSString *) videoURL
+- (NSURLSessionDownloadTask *) downloadFromURL:(NSString *) videoURL
 { 
 	NSURL *url = [NSURL URLWithString:videoURL];
 	NSURLSessionConfiguration *httpConfig = [NSURLSessionConfiguration defaultSessionConfiguration];
 
-	NSURLSession *httpDownload = [NSURLSession sessionWithConfiguration:httpConfig 
+	NSURLSession *httpSession = [NSURLSession sessionWithConfiguration:httpConfig
 			                                                   delegate:self 
 			                                              delegateQueue:nil];
 
-	NSURLSessionDownloadTask *httpDownload = [[NSURLSession sharedSession] downloadTaskWithURL:url];
+	NSURLSessionDownloadTask *httpDownload = [httpSession downloadTaskWithURL:url];
 
 	[httpDownload resume];
+
+	return httpDownload;
+}
+
+//
+// Pausamos una descarga 
+//
+- (NSURL *) cancelDownloadFromSession:(NSURLSessionDownloadTask *) downloadTask
+{
+	__block NSURL *file_url = [self createCacheFile];
+
+	[downloadTask cancelByProducingResumeData:^(NSData *resumeData)
+	{
+		BOOL saved = [resumeData writeToURL:file_url atomically:NO];
+
+		if(!saved)
+		{
+			file_url = nil;
+		}
+	}];
+
+	return file_url;
+}
+
+//
+//
+//
+- (void) resumeVideoDownload:(NSString *) downloadFile
+{
+    // TODO
 }
 
 #pragma mark - Metodo privados
 //
+// Construye la URL para interrogar al API
 //
-//
-- (NSURL *) formatURLWithString:(NSString *) string
+- (NSURL *) formatURLWithString:(NSString *) videoURL
 {
-	NSString *url_complete = [[NSString alloc] initWithFormat:@"%@%@", self.baseURL, string];
+	NSString *url_complete = [[NSString alloc] initWithFormat:@"%@?url=%@", self.baseURL, videoURL];
 
 	return [NSURL URLWithString:url_complete];
 }
 
+//
+// Nombre de archivo para descargas pausadas
+//
+- (NSURL *) createCacheFile
+{
+	NSString *uuid = [[NSUUID UUID] UUIDString];
+	NSString *file = [uuid stringByAppendingString:@".download"];
+
+	NSArray *dirs = [[NSFileManager defaultManager] URLsForDirectory:NSCachesDirectory inDomains:NSUserDomainMask];
+	NSURL *dir_url = (NSURL *) [dirs objectAtIndex:0];
+	NSURL *file_url = [dir_url URLByAppendingPathComponent:file isDirectory:NO];
+
+	return file_url;
+}
+
 #pragma mark - Metodos del protocolo NSURLSessionDownloadDelegate
 //
-// 
+// Avisa cuando termina una descarga
 //
-- (void) URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *)location
+- (void) URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didFinishDownloadingToURL:(NSURL *) location
 {
 	if([self.delegate respondsToSelector:@selector(SpainTVSClient:didFinishDownloading:)])
 	{
@@ -155,17 +218,17 @@
 }
 
 //
+//	Informa al delegado de que la tarea de descarga se ha reiniciado
 //
-//
-- (void) URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t)fileOffset expectedTotalBytes:(int64_t)expectedTotalBytes
+- (void) URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t) fileOffset expectedTotalBytes:(int64_t) expectedTotalBytes
 {
 	// Nothing TODO
 }
 
 //
+// InformaciÛn sobre los bytes descargados en el momento en el que se invoca este mÈtodo
 //
-//
-- (void) URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didWriteData:(int64_t)bytesWritten totalBytesWritten:(int64_t)totalBytesWritten totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite
+- (void) URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didWriteData:(int64_t) bytesWritten totalBytesWritten:(int64_t) totalBytesWritten totalBytesExpectedToWrite:(int64_t) totalBytesExpectedToWrite
 {
 	if([self.delegate respondsToSelector:@selector(SpainTVSClient:bytesDownloaded:bytesRemaining:)])
 	{
