@@ -12,14 +12,14 @@ NSString *enlace = @"http://www.mitele.es/viajes/callejeros-viajeros/temporada-3
 
 [[DSSpainTVSClient sharedClient] recoverVideoInfo:enlace completionHandler:^(NSArray *info, NSError *error) 
 {
-        for(DSSpainTVSVideoInfo *video in info)
+    for(DSSpainTVSVideoInfo *video in info)
+    {
+        NSLog(@"%@", [video debugDescription]);
+        [[DSSpainTVSClient sharedClient] recoverVideoImage:video.imagen completionHandler:^(UIImage *imagen, NSError *error) 
         {
-            NSLog(@"%@", [video debugDescription]);
-            [[DSSpainTVSClient sharedClient] recoverVideoImage:video.imagen completionHandler:^(UIImage *imagen, NSError *error) 
-            {
-                NSLog(@"Tamaño de la imagen: %@", [imagen description]);
-            }];
-        }
+            NSLog(@"Imagen (description): %@", [imagen description]);
+        }];
+    }
 }];
 ```
 
